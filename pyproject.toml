@@ -1,0 +1,27 @@
+[project]
+name = "estatebot"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "alembic>=1.16.3",
+    "fastapi>=0.116.0",
+    "gunicorn>=23.0.0",
+    "httpx>=0.28.1",
+    "orjson>=3.10.18",
+    "psycopg2-binary>=2.9.10",
+    "pydantic>=2.11.7",
+    "pydantic-core>=2.33.2",
+    "pydantic-settings>=2.10.1",
+    "python-json-logger>=3.3.0",
+    "redis>=6.2.0",
+    "sqlalchemy>=2.0.41",
+    "sqlmodel>=0.0.24",
+    "uvicorn>=0.35.0",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.12.2",
+]

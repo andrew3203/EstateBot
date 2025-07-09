@@ -1,0 +1,48 @@
+x-base_app: &base_app
+  build:
+    context: .
+    dockerfile: ./compose/Dockerfile
+  volumes:
+    - ./src/:/app/src
+    - ./models/:/app/models
+  env_file:
+    - .env
+
+services:
+  estate_bot: 
+    <<: *base_app
+    image: estate_bot
+    container_name: estate_bot
+    depends_on:
+      - estate_redis
+      - estate_db
+    networks:
+      - estate_net
+    ports:
+      - "8001:8000"
+    command: /start
+  
+  estate_redis:
+    image: redis:6
+    container_name: estate_redis
+    env_file:
+      - .env
+    networks:
+      - estate_net
+  
+  estate_db:
+    image: postgres:17
+    container_name: estate_db
+    env_file:
+      - .env
+    volumes:
+      - estate_db_data:/var/lib/postgresql/data 
+    networks:
+      - estate_net
+
+volumes:
+  estate_db_data:
+
+networks:
+  estate_net:
+    external: true
