@@ -52,7 +52,7 @@ class SearchEngine:
         if not results:
             return "К сожалению, ничего не найдено по заданным параметрам."
         lines = [
-            f"🔹 {r['title']}, {r['area']} м², {r['price']:,} ₽ — {r['location']}"
+            f"🔹 {r['firstBlock']['project_description']}, {r['firstBlock']['square']} м², {r['firstBlock']['priceFrom']:,} ₽ — {r['fifthBlock']['district']}"
             for r in results
         ]
         return "Вот что я нашёл:\n" + "\n".join(lines)

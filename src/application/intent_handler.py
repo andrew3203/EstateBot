@@ -8,20 +8,25 @@ class IntentHandler:
         self.ner_resolver = ner_resolver
         self.search_engine = search_engine
 
-    async def handle(self, intent: str, ner: NERResponse | None) -> str:
+    async def handle(self, intent: str, ner: NERResponse | None) -> tuple[str, dict]:
         if intent == "out_of_scope":
-            return "Я вас не понимаю, переформулируйте вопрос. Я могу помочь с покупкой недвижимости."
+            return (
+                "Я вас не понимаю, переформулируйте вопрос. Я могу помочь с покупкой недвижимости.",
+                {},
+            )
 
         if intent == "buy_property":
             if ner is None:
-                return "Не удалось извлечь параметры. Повторите, пожалуйста."
+                return "Не удалось извлечь параметры. Повторите, пожалуйста.", {}
 
             missing_prompt = self.ner_resolver.get_missing_prompt(ner)
             if missing_prompt:
-                return missing_prompt
+                return missing_prompt, {}
 
             # все параметры есть — выполняем поиск
             results = await self.search_engine.search(ner)
-            return self.search_engine.format_results(results)
+            return self.search_engine.format_results(results), {
+                "search_results": results
+            }
 
-        return "Неизвестный запрос. Попробуйте переформулировать."
+        return "Неизвестный запрос. Попробуйте переформулировать.", {}

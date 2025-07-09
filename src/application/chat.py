@@ -22,7 +22,7 @@ class ChatUseCase:
         user_history: UserHistory,
         messages_queue: MessageHistoryQueue,
         question: str,
-    ) -> str:
+    ) -> tuple[str, dict]:
         history_str = await self.get_history_str(
             user_id=user_id, question=question, user_history=user_history
         )
@@ -33,7 +33,7 @@ class ChatUseCase:
         if intent_result.intent != "out_of_scope":
             ner_result = await self.http.get_ner(text=history_str)
 
-        full_answer = await self.intent_handler.handle(
+        full_answer, aditional = await self.intent_handler.handle(
             intent=intent_result.intent, ner=ner_result
         )
 
