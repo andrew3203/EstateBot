@@ -8,6 +8,7 @@ class Settings(BaseSettings):
 
     OPENAI_API_KEY: str = Field(description="Open ai Key")
     INTENT_API_URL: str = Field(description="INTENT url name")
+    QUERY_API_URL: str = Field(description="Query url name")
 
     POSTGRES_HOST: str = Field(description="pg host")
     POSTGRES_PORT: int = Field(description="pg port")
