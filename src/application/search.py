@@ -15,7 +15,7 @@ class SearchEngine:
             "square": None,
         }
         if ner.location and ner.location.district:
-            params["district"] = ner.location.district.upper()
+            params["district"] = ner.location.district.capitalize()
 
         if ner.price:
             if ner.price.min_price and ner.price.max_price:
@@ -46,13 +46,14 @@ class SearchEngine:
             elif ner.area.max_area:
                 params["square"] = f"0-{ner.area.max_area}"
 
+        print(params)
         return await self.http.search(params=params, limit=limit)
 
     def format_results(self, results: list[dict]) -> str:
         if not results:
             return "К сожалению, ничего не найдено по заданным параметрам."
         lines = [
-            f"🔹 {r['firstBlock']['project_description']}, {r['firstBlock']['square']} м², {r['firstBlock']['priceFrom']:,} ₽ — {r['fifthBlock']['district']}"
+            f"🔹 {r['firstBlock']['project_description']}, {r['firstBlock']['square']} м², {r['firstBlock']['priceFrom']} ₽ — {r['fifthBlock']['district']}"
             for r in results
         ]
-        return "Вот что я нашёл:\n" + "\n".join(lines)
+        return "Вот что я нашёл:<br>" + "<br>".join(lines)

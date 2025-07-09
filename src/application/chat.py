@@ -4,7 +4,7 @@ from src.application.ner_resolver import NERPromptResolver
 from src.application.search import SearchEngine
 from src.repo.history_queue import MessageHistoryQueue
 from src.repo.intent_http import IntentHttp
-from src.schema.ai_query import AIRequest
+from src.schema.ai_query import AIRequest, AIResponse
 from src.service.history import UserHistory
 
 
@@ -22,7 +22,7 @@ class ChatUseCase:
         user_history: UserHistory,
         messages_queue: MessageHistoryQueue,
         data: AIRequest,
-    ) -> tuple[str, dict]:
+    ) -> AIResponse:
         history_str = await self.get_history_str(
             user_id=data.user_id,
             question=data.question,
@@ -51,7 +51,7 @@ class ChatUseCase:
             assistant_send_at=datetime.now(UTC),
         )
 
-        return full_answer
+        return AIResponse(answer=full_answer, aditional=aditional, buttons=[])
 
     async def get_history_str(
         self,

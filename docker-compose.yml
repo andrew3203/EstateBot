@@ -3,6 +3,7 @@ x-base_app: &base_app
     context: .
     dockerfile: ./compose/Dockerfile
   volumes:
+    - ./alembic/:/app/alembic
     - ./src/:/app/src
     - ./models/:/app/models
   env_file:
@@ -19,7 +20,7 @@ services:
     networks:
       - estate_net
     ports:
-      - "8001:8000"
+      - "8000:8000"
     command: /start
   
   estate_redis:

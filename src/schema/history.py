@@ -5,7 +5,6 @@ from pydantic import Field
 
 class ChatItem(BaseModel):
     user: str = Field(description="User question")
-    user_read_at: datetime = Field(description="User read datetime")
     assistant: str = Field(description="Assistent answer")
     assistant_send_at: datetime = Field(description="Assistent read datetime")
 

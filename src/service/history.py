@@ -30,13 +30,12 @@ class UserHistory(metaclass=SingletonMeta):
         model = await self.cache.get(key=key)
         if model and offset == 0:
             data = HistoryModel.model_validate(model)
-            if len(data.data) >= limit:
+            if len(data.data) >= limit or limit == 10:
                 return HistoryModel(
                     data=data.data[-limit:],
-                    spent=data.spent,
-                    limit=data.limit,
                 )
 
+        logger.info("DATA FROM DB")
         messages: list[ChatItem] = []
         try:
             async for session in get_session():
@@ -59,18 +58,16 @@ class UserHistory(metaclass=SingletonMeta):
         self,
         user_id: str,
         answer: str,
-        user_read_at: datetime,
         question: str,
     ) -> HistoryModel:
         model = await self.get(user_id=user_id)
         model.data.append(
             ChatItem(
                 user=question,
-                user_read_at=user_read_at,
                 assistant=answer,
                 assistant_send_at=datetime.now(UTC),
             )
         )
-        model.spent += 1
         key = self._get_key(user_id=user_id)
+        logger.info("SET NEW")
         await self.cache.set(key=key, value=model.model_dump(mode="json"))

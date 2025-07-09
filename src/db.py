@@ -79,7 +79,7 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
 
 @asynccontextmanager
 async def get_transactional_session() -> AsyncGenerator[AsyncSession, None]:
-    session = await async_session_maker()
+    session = async_session_maker()
     try:
         session.begin()
         yield session

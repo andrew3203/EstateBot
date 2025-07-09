@@ -4,10 +4,9 @@ from src.models.history import MessageHistory
 from src.schema.history import ChatItem
 
 
-def get_user_messages_paginated(
+async def get_user_messages_paginated(
     session: Session,
     user_id: int,
-    course_uuid: str | None = None,
     limit: int = 10,
     offset: int = 0,
 ) -> list[ChatItem]:
@@ -22,19 +21,15 @@ def get_user_messages_paginated(
     :return: Список сообщений в виде ChatItem
     """
     statement = select(MessageHistory).where(MessageHistory.user_id == user_id)
-    if course_uuid:
-        statement = statement.where(MessageHistory.course_uuid == course_uuid)
-
-    statement = statement.order_by(desc(MessageHistory.user_read_at))
+    statement = statement.order_by(desc(MessageHistory.assistant_send_at))
     statement = statement.limit(limit)
     statement = statement.offset(offset)
 
-    results = session.exec(statement).all()
-
+    results_raw = await session.exec(statement)
+    results = results_raw.all()
     items = [
         ChatItem(
             user=row.user_text,
-            user_read_at=row.user_read_at,
             assistant=row.assistant_text,
             assistant_send_at=row.assistant_send_at,
         )

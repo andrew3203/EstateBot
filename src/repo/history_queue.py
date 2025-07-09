@@ -24,14 +24,12 @@ class MessageHistoryQueue(metaclass=SingletonMeta):
         user_id: int,
         user_text: str,
         assistant_text: str,
-        user_read_at: datetime,
         assistant_send_at: datetime,
     ):
         message = MessageHistory(
             user_id=user_id,
             user_text=user_text,
             assistant_text=assistant_text,
-            user_read_at=user_read_at,
             assistant_send_at=assistant_send_at,
         )
         async with self._lock:

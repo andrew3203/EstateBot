@@ -104,7 +104,7 @@ class SafeLRUCache(metaclass=SingletonMeta):
             )
             pipe = self.redis.pipeline()
             try:
-                pipe.reset()
+                await pipe.reset()
                 if op == "set":
                     await pipe.hset(self.redis_storage_key, key, value)
                 elif op == "delete":
@@ -136,7 +136,7 @@ class SafeLRUCache(metaclass=SingletonMeta):
                 )
 
                 for _, messages in entries:
-                    with self.lock:
+                    async with self.lock:
                         now = time.time()
                         for msg_id, fields in messages:
                             op = fields["op"]
@@ -196,7 +196,7 @@ class SafeLRUCache(metaclass=SingletonMeta):
             return None
 
     async def set(self, key: str | int, value: Any) -> None:
-        with self.lock:
+        async with self.lock:
             if key in self.cache:
                 self.cache.move_to_end(key)
             self.cache[key] = (value, time.time())
