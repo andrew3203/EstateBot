@@ -3,6 +3,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.responses import ORJSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
+from src.application.chat import ChatUseCase
 from src.repo.history_queue import MessageHistoryQueue
 from src.routers import router
 from src.service.history import UserHistory
@@ -15,6 +16,7 @@ async def lifespan(app: FastAPI):
     cache = SafeLRUCache(max_age=60 * 5, maxsize=10_000)
     app.state.user_history = UserHistory(cache=cache)
     app.state.messages_queue = MessageHistoryQueue()
+    app.state.chat = ChatUseCase()
 
     yield
 
