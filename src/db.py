@@ -1,13 +1,14 @@
 import logging
-from collections.abc import Generator
-from contextlib import contextmanager
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 
 from fastapi import HTTPException
 from sqlalchemy import MetaData
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlmodel import create_engine
-from sqlmodel import Session
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from config.config import settings
 
@@ -28,39 +29,42 @@ logger = logging.getLogger(__name__)
 
 metadata = MetaData(naming_convention=DB_NAMING_CONVENTION)
 
-engine = create_engine(
-    settings.DB_URL,
-    echo=False,
-    future=True,
-    json_serializer=json.dumps,
-    json_deserializer=json.loads,
-    pool_size=32,
-    pool_timeout=10,
-    pool_recycle=60 * 2,
-    max_overflow=5,
-    pool_pre_ping=True,
+
+engine = AsyncEngine(
+    create_engine(
+        settings.DB_URL,
+        echo=False,
+        future=True,
+        json_serializer=json.dumps,
+        json_deserializer=json.loads,
+        pool_size=32,
+        pool_timeout=10,
+        pool_recycle=60 * 2,
+        max_overflow=5,
+        pool_pre_ping=True,
+    )
 )
 
-session_maker = sessionmaker(
+async_session_maker = sessionmaker(
     bind=engine,
-    class_=Session,
+    class_=AsyncSession,
     expire_on_commit=False,
     autocommit=False,
     autoflush=True,
-)
+)  # type: ignore
 
 
-def get_session() -> Generator[Session, None]:
+async def get_session() -> AsyncGenerator[AsyncSession, None]:
     try:
-        with session_maker() as session:
+        async with async_session_maker() as session:
             try:
                 yield session
-                session.commit()
+                await session.commit()
             except Exception as e:
-                session.rollback()
+                await session.rollback()
                 raise e
             finally:
-                session.close()
+                await session.close()
     except SQLAlchemyError as e:
         logger.error(f"DB Error {str(e)}")
         raise HTTPException(
@@ -73,14 +77,14 @@ def get_session() -> Generator[Session, None]:
         ) from e
 
 
-@contextmanager
-def get_transactional_session() -> Generator[Session, None, None]:
-    session = session_maker()
+@asynccontextmanager
+async def get_transactional_session() -> AsyncGenerator[AsyncSession, None]:
+    session = await async_session_maker()
     try:
         session.begin()
         yield session
     except Exception as e:
-        session.rollback()
+        await session.rollback()
         logger.error(f"Transaction rollback due to error: {str(e)}")
         raise HTTPException(
             status_code=500,
@@ -91,4 +95,4 @@ def get_transactional_session() -> Generator[Session, None, None]:
             },
         ) from e
     finally:
-        session.close()
+        await session.close()
