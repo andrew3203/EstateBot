@@ -15,7 +15,7 @@ WORKER_CLASS=${WORKER_CLASS:-"uvicorn.workers.UvicornWorker"}
 
 if [ "$DEBUG" == "True" ]; then
   echo "Running in development mode with reload..."
-  uvicorn "$APP_MODULE" --reload --reload-dir /app --host 0.0.0.0 --port 8000
+  uvicorn "$APP_MODULE" --reload --reload-dir /app --host 0.0.0.0 --port 80
 else
   echo "Running in production mode with gunicorn..."
   gunicorn --forwarded-allow-ips "*" -k "$WORKER_CLASS" -c "$GUNICORN_CONF" "$APP_MODULE"

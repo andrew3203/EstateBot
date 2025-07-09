@@ -15,7 +15,7 @@ class GunicornConfig(BaseSettings):
     """GunicornConfig"""
 
     HOST: str = "0.0.0.0"
-    PORT: str = "8000"
+    PORT: str = "80"
     GUNICORN_BIND: str | None = None
     GUNICORN_WORKERS_PER_CORE: int = 1
     GUNICORN_MAX_WORKERS: int = 2
