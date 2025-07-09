@@ -4,25 +4,15 @@ from fastapi.responses import ORJSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.routers import router
-from src.repo.history_queue import MessageHistoryQueue
-from src.services.history import UserHistory
-from src.services.prompts import PromptsService
+from src.service.history import UserHistory
 from src.utils.exceptions import BaseException
-from src.application.rag.cache_ra import RAGCache
-from src.utils.default_answers import DefaultAnswers
 from src.utils.сache import ThreadSafeLRUCache
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    app.state.rag_repo = RAGCache()
-    app.state.answers = DefaultAnswers()
-
     cache = ThreadSafeLRUCache(max_age=60 * 5, maxsize=10_000)
     app.state.user_history = UserHistory(cache=cache)
-
-    app.state.prompts = PromptsService()
-    app.state.messages_queue = MessageHistoryQueue()
 
     yield
 
