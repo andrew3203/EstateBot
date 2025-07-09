@@ -18,7 +18,7 @@ class MessageHistory(SQLModel, table=True, metadata=metadata):
         description="Date user read the assistant text",
         sa_column=sa.Column(sa.DateTime(timezone=True), nullable=False),
     )
-    assistent_send_at: datetime = Field(
+    assistant_send_at: datetime = Field(
         description="Date assistant read users question",
         sa_column=sa.Column(sa.DateTime(timezone=True), nullable=False),
     )

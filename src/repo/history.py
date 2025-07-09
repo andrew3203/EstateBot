@@ -1,7 +1,7 @@
 from sqlmodel import Session, select
 from sqlmodel import desc
 from src.models.history import MessageHistory
-from src.shema.history import ChatItem
+from src.schema.history import ChatItem
 
 
 def get_user_messages_paginated(
@@ -36,8 +36,8 @@ def get_user_messages_paginated(
             user=row.user_text,
             user_read_at=row.user_read_at,
             assistant=row.assistant_text,
-            assistent_send_at=row.assistent_send_at,
+            assistant_send_at=row.assistant_send_at,
         )
         for row in results
     ]
-    return sorted(items, key=lambda i: i.assistent_send_at)
+    return sorted(items, key=lambda i: i.assistant_send_at)

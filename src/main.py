@@ -3,20 +3,23 @@ from fastapi import FastAPI, Request, status
 from fastapi.responses import ORJSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
+from src.repo.history_queue import MessageHistoryQueue
 from src.routers import router
 from src.service.history import UserHistory
 from src.utils.exceptions import BaseException
-from src.utils.сache import ThreadSafeLRUCache
+from src.utils.cache import SafeLRUCache
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    cache = ThreadSafeLRUCache(max_age=60 * 5, maxsize=10_000)
+    cache = SafeLRUCache(max_age=60 * 5, maxsize=10_000)
     app.state.user_history = UserHistory(cache=cache)
+    app.state.messages_queue = MessageHistoryQueue()
 
     yield
 
     cache.stop()
+    await app.state.messages_queue.stop()
 
 
 app = FastAPI(lifespan=lifespan)

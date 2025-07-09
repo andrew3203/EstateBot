@@ -1,9 +1,9 @@
 from datetime import datetime, UTC
 import logging
 from src.repo.history import get_user_messages_paginated
-from src.shema.history import HostoryModel, ChatItem
+from src.schema.history import HistoryModel, ChatItem
 from src.utils.singleton import SingletonMeta
-from src.utils.сache import ThreadSafeLRUCache
+from src.utils.cache import SafeLRUCache
 from src.db import get_session
 
 logger = logging.getLogger(__name__)
@@ -12,34 +12,26 @@ logger = logging.getLogger(__name__)
 class UserHistory(metaclass=SingletonMeta):
     def __init__(
         self,
-        cache: ThreadSafeLRUCache,
-        messages_limit: int | None = None,
+        cache: SafeLRUCache,
     ):
         self.cache = cache
-        self.messages_limit = messages_limit or 10
 
-    def _get_key(self, user_id: int, course_uuid: str | None = None) -> str:
-        return f"{user_id}-{course_uuid}" if course_uuid else f"{user_id}"
+    def _get_key(self, user_id: str) -> str:
+        return f"{user_id}"
 
-    def check(slelf, model: HostoryModel):
-        return model.spent <= model.limit
-
-    def get(
+    async def get(
         self,
-        user_id: int,
-        course_uuid: str | None = None,
+        user_id: str,
         limit: int = 10,
         offset: int = 0,
-    ) -> HostoryModel:
-        key = self._get_key(user_id=user_id, course_uuid=course_uuid)
+    ) -> HistoryModel:
+        key = self._get_key(user_id=user_id)
 
-        model = self.cache.get(key=key)
-        spent = 0
+        model = await self.cache.get(key=key)
         if model and offset == 0:
-            data = HostoryModel.model_validate(model)
-            spent = data.spent
+            data = HistoryModel.model_validate(model)
             if len(data.data) >= limit:
-                return HostoryModel(
+                return HistoryModel(
                     data=data.data[-limit:],
                     spent=data.spent,
                     limit=data.limit,
@@ -47,40 +39,38 @@ class UserHistory(metaclass=SingletonMeta):
 
         messages: list[ChatItem] = []
         try:
-            for session in get_session():
-                messages = get_user_messages_paginated(
+            async for session in get_session():
+                messages = await get_user_messages_paginated(
                     session=session,
                     user_id=user_id,
-                    course_uuid=course_uuid,
                     limit=limit,
                     offset=offset,
                 )
         except Exception as e:
             logger.error(f"Error fetching data from db {user_id=}: {e}", exc_info=True)
 
-        data = HostoryModel(data=messages, spent=spent, limit=self.messages_limit)
+        data = HistoryModel(data=messages)
         if offset == 0 and messages:
-            self.cache.set(key=key, value=data.model_dump())
+            await self.cache.set(key=key, value=data.model_dump())
 
         return data
 
-    def update(
+    async def update(
         self,
-        user_id: int,
-        course_uuid: str,
+        user_id: str,
         answer: str,
         user_read_at: datetime,
         question: str,
-    ) -> HostoryModel:
-        model = self.get(user_id=user_id, course_uuid=course_uuid)
+    ) -> HistoryModel:
+        model = await self.get(user_id=user_id)
         model.data.append(
             ChatItem(
                 user=question,
                 user_read_at=user_read_at,
                 assistant=answer,
-                assistent_send_at=datetime.now(UTC),
+                assistant_send_at=datetime.now(UTC),
             )
         )
         model.spent += 1
-        key = self._get_key(user_id=user_id, course_uuid=course_uuid)
-        self.cache.set(key=key, value=model.model_dump(mode="json"))
+        key = self._get_key(user_id=user_id)
+        await self.cache.set(key=key, value=model.model_dump(mode="json"))

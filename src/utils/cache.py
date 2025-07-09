@@ -1,12 +1,11 @@
 import os
 import time
-import threading
-import queue
+import asyncio
 import uuid
 from collections import OrderedDict
 from typing import Any, Literal
 
-from redis import Redis, ConnectionPool
+from redis.asyncio import Redis, ConnectionPool
 from src.json import json
 
 from config.config import settings
@@ -17,12 +16,12 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class ThreadSafeLRUCache(metaclass=SingletonMeta):
+class SafeLRUCache(metaclass=SingletonMeta):
     def __init__(self, max_age: int, maxsize: int, redis_key="lru_cache"):
         self.cache: OrderedDict[str | int, Any] = OrderedDict()
         self.max_age = max_age
         self.maxsize = maxsize
-        self.lock = threading.Lock()
+        self.lock = asyncio.Lock()
         self.instance_id = self.__generate_instance_id()
 
         redis_pool = ConnectionPool.from_url(
@@ -40,19 +39,17 @@ class ThreadSafeLRUCache(metaclass=SingletonMeta):
         self.redis_storage_key = f"{redis_key}_storage"
         self.redis_stream_key = f"{redis_key}_stream"
 
-        self._load_all_from_redis()
+        self.stop_event = asyncio.Event()
 
-        self.stop_event = threading.Event()
-
-        self.task_queue: queue.Queue[
+        self.task_queue: asyncio.Queue[
             tuple[Literal["set", "delete"], str | int, Any | None]
-        ] = queue.Queue()
+        ] = asyncio.Queue()
 
-        self.sync_thread = threading.Thread(target=self._background_sync, daemon=True)
-        self.sync_thread.start()
+        loop = asyncio.get_running_loop()
+        loop.create_task(self._load_all_from_redis())
 
-        self.worker_thread = threading.Thread(target=self._worker_loop, daemon=True)
-        self.worker_thread.start()
+        self.task_sync = loop.create_task(self._background_sync())
+        self.task_worker = loop.create_task(self._worker_loop())
 
     def __generate_instance_id(self):
         pod_name = os.getenv("HOSTNAME", "unknownpod")
@@ -61,14 +58,14 @@ class ThreadSafeLRUCache(metaclass=SingletonMeta):
         timestamp = int(time.time() * 1e6) % 1000
         return f"{pod_name}-{pid}-{random_part}-{timestamp}"
 
-    def _load_all_from_redis(self):
+    async def _load_all_from_redis(self):
         try:
             cursor = 0
             while True:
-                cursor, data = self.redis.hscan(
+                cursor, data = await self.redis.hscan(
                     self.redis_storage_key, cursor=cursor, count=100
                 )
-                with self.lock:
+                async with self.lock:
                     now = time.time()
                     for key, raw_val in data.items():
                         try:
@@ -82,18 +79,18 @@ class ThreadSafeLRUCache(metaclass=SingletonMeta):
         except Exception as e:
             logger.error(f"Redis HSCAN load error: {e}")
 
-    def _save_item_to_redis(self, key: str | int, value: Any) -> None:
+    async def _save_item_to_redis(self, key: str | int, value: Any) -> None:
         packed_value = json.dumps([value, time.time()])
-        self.task_queue.put(("set", key, packed_value))
+        await self.task_queue.put(("set", key, packed_value))
 
-    def _delete_item_from_redis(self, key: str | int) -> None:
-        self.task_queue.put(("delete", key, None))
+    async def _delete_item_from_redis(self, key: str | int) -> None:
+        await self.task_queue.put(("delete", key, None))
 
-    def _worker_loop(self):
+    async def _worker_loop(self):
         while not self.stop_event.is_set():
             try:
-                task = self.task_queue.get(timeout=1)
-            except queue.Empty:
+                task = await self.task_queue.get()
+            except asyncio.QueueEmpty:
                 continue
 
             op, key, value = task
@@ -109,10 +106,10 @@ class ThreadSafeLRUCache(metaclass=SingletonMeta):
             try:
                 pipe.reset()
                 if op == "set":
-                    pipe.hset(self.redis_storage_key, key, value)
+                    await pipe.hset(self.redis_storage_key, key, value)
                 elif op == "delete":
-                    pipe.hdel(self.redis_storage_key, key)
-                pipe.xadd(
+                    await pipe.hdel(self.redis_storage_key, key)
+                await pipe.xadd(
                     self.redis_stream_key,
                     {
                         "op": op,
@@ -123,16 +120,16 @@ class ThreadSafeLRUCache(metaclass=SingletonMeta):
                     maxlen=1000,
                     approximate=True,
                 )
-                pipe.execute()
+                await pipe.execute()
             except Exception as e:
                 logger.error(f"Redis worker error on {op} key={key}: {e}")
             finally:
                 self.task_queue.task_done()
 
-    def _background_sync(self):
+    async def _background_sync(self):
         while not self.stop_event.is_set():
             try:
-                entries = self.redis.xread(
+                entries = await self.redis.xread(
                     {self.redis_stream_key: "$"},
                     count=100,
                     block=1000,
@@ -173,15 +170,13 @@ class ThreadSafeLRUCache(metaclass=SingletonMeta):
 
             except Exception as e:
                 logger.error(f"Redis stream read error: {e}")
-                time.sleep(5)
+                asyncio.sleep(5)
 
     def stop(self):
         self.stop_event.set()
-        self.sync_thread.join()
-        self.worker_thread.join()
 
-    def get(self, key: str | int) -> Any | None:
-        with self.lock:
+    async def get(self, key: str | int) -> Any | None:
+        async with self.lock:
             if key in self.cache:
                 value, timestamp = self.cache[key]
                 now = time.time()
@@ -197,15 +192,15 @@ class ThreadSafeLRUCache(metaclass=SingletonMeta):
                     return value
                 else:
                     del self.cache[key]
-                    self._delete_item_from_redis(key)
+                    await self._delete_item_from_redis(key)
             return None
 
-    def set(self, key: str | int, value: Any) -> None:
+    async def set(self, key: str | int, value: Any) -> None:
         with self.lock:
             if key in self.cache:
                 self.cache.move_to_end(key)
             self.cache[key] = (value, time.time())
             if len(self.cache) > self.maxsize:
                 old_key, _ = self.cache.popitem(last=False)
-                self._delete_item_from_redis(old_key)
-            self._save_item_to_redis(key, value)
+                await self._delete_item_from_redis(old_key)
+            await self._save_item_to_redis(key, value)
